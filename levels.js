@@ -1,7 +1,7 @@
 // レベル定義。研究知見: 段階的曝露 + 予期違反 + 知識 + 感情ラベリング + 触覚 + モデリング
 export const LEVELS = [
   { id:1, stage:1, title:'たまご', short:'名前をつける', minutes:3,
-    goal:'丸いデフォルメのハエトリグモ。まず名前をつけて、孵化させる。',
+    goal:'これから一緒に過ごす1匹のハエトリグモの「たまご」に名前をつけて、孵化させる。名前をつけると「虫」が「この子」になり、嫌悪が下がりやすい(克服した人の体験談で共通)。この子はLv11のARまで同じ個体として出てきて、最後に本物へバトンタッチする。',
     kind:'svgCute',
     fact:'ハエトリグモは巣を張らない。歩きまわって獲物を探す「徘徊性」のクモで、人を噛むことはまずない。',
     predict:['ぴょんと跳ねる','じっとしている','こっちを見る'], actual:1, actualText:'孵化したては、じっとしてこちらを見ている。' },
@@ -76,6 +76,12 @@ export const BAT_STEPS = [
   '7: 素手でクモに触れる／手に乗せられる',
 ];
 
+// 既定のモデリング動画(YouTube)。lv6=手に乗せている / lv5=歩く・跳ぶ
+export const DEFAULT_VIDEOS = {
+  lv6: ['https://www.youtube.com/watch?v=YIn5jBGiCa8', 'https://www.youtube.com/watch?v=5tJhNCE2M0U', 'https://www.youtube.com/watch?v=MQBAIud6Twg', 'https://www.youtube.com/watch?v=z40UYe5oTsQ'],
+  lv5: ['https://www.youtube.com/watch?v=RdmbhgKfqxA', 'https://www.youtube.com/watch?v=Do07I3HZKRs'],
+};
+
 export const AFFECT = ['ゾワゾワ','ドキドキ','ムズムズ','平気','ちょっと好奇心'];
 
 // ---------- SVG art ----------
@@ -102,13 +108,13 @@ export function svgCute(name, hatched){
     <g class="egg">
       <ellipse cx="100" cy="120" rx="46" ry="58" fill="#f6f1e4" stroke="#d9cfb8" stroke-width="3"/>
       <ellipse cx="86" cy="98" rx="10" ry="16" fill="#fff" opacity=".7"/>
-      <text x="100" y="205" text-anchor="middle" font-size="12" fill="#5f6b66">タップして孵化</text>
+      <text x="100" y="205" text-anchor="middle" font-size="12" fill="#5f6b66">下で名前をつけると孵化する</text>
     </g>`;
   return `<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${name||'たまご'}">
     <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dff0e3"/><stop offset="1" stop-color="#b9dcc3"/></linearGradient></defs>
     <rect width="200" height="220" fill="url(#g1)"/>
     <ellipse cx="100" cy="190" rx="80" ry="14" fill="#8fbf9c" opacity=".6"/>
-    ${hatched ? `<g class="spider-cute">${body}</g>` : egg}
+    ${hatched ? `<g class="spider-cute">${body}</g><text x="100" y="208" text-anchor="middle" font-size="12" font-weight="700" fill="#1f6f5f">${name||''}</text>` : egg}
   </svg>`;
 }
 

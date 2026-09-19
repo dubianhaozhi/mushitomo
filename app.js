@@ -1,13 +1,13 @@
-import { LEVELS, STAGE3, BAT_STEPS, AFFECT, GUIDE_LINES, svgCute, svgReal, FLY_SVG } from './levels.js';
+import { LEVELS, STAGE3, BAT_STEPS, AFFECT, GUIDE_LINES, DEFAULT_VIDEOS, svgCute, svgReal, FLY_SVG } from './levels.js';
 
 // ---------- state ----------
 const KEY = 'mushitomo.v1';
 const defaultState = () => ({
   name: '', hatched: false, baseline: null, final: null, sessions: [], maxUnlocked: 1,
-  stage3: {}, videos: { lv5: [], lv6: [] }, prey: 0, voice: true, photos: [], commonsVideos: [], zukan: [], createdAt: Date.now()
+  stage3: {}, videos: { lv5: [...DEFAULT_VIDEOS.lv5], lv6: [...DEFAULT_VIDEOS.lv6] }, prey: 0, voice: true, photos: [], commonsVideos: [], zukan: [], createdAt: Date.now()
 });
 let S = load();
-function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); return j ? { ...defaultState(), ...j } : defaultState(); } catch { return defaultState(); } }
+function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); const st = j ? { ...defaultState(), ...j } : defaultState(); st.videos = st.videos || {}; if (!st.videos.lv5?.length) st.videos.lv5 = [...DEFAULT_VIDEOS.lv5]; if (!st.videos.lv6?.length) st.videos.lv6 = [...DEFAULT_VIDEOS.lv6]; return st; } catch { return defaultState(); } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('保存に失敗: ' + e.message); } }
 
 // ---------- utils ----------
@@ -133,8 +133,9 @@ function stepIntro(L, flow) {
 }
 function modelingBlock(L) {
   const urls = [...(S.videos.lv6 || []), ...(S.videos.lv5 || [])];
-  const id = urls.map(ytId).find(Boolean);
-  if (id) return `<div class="card"><h3>モデリング動画(10秒でOK)</h3><div class="stage tall"><iframe style="width:100%;height:100%;border:0" src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div>`;
+  const ids = urls.map(ytId).filter(Boolean);
+  const id = ids.length ? ids[(S.sessions.length) % ids.length] : null; // セッションごとに順番に変える(刺激の多様性)
+  if (id) return `<div class="card"><h3>モデリング動画(10秒でOK)</h3><p class="small muted">平気な人がハエトリグモを手に乗せている動画。見るだけ。きつければ再生せずに飛ばしてOK(Lv1〜2は特に)。</p><div class="stage tall"><iframe style="width:100%;height:100%;border:0" src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div>`;
   return `<div class="card"><h3>モデリング動画</h3><p class="small muted">「ハエトリグモを手に乗せている人」の動画を1本、設定から登録しておくと毎回ここに出る。</p><div class="row"><a class="btn sm" href="https://www.youtube.com/results?search_query=${encodeURIComponent('ハエトリグモ 手に乗せる')}" target="_blank" rel="noopener">YouTubeで探す ↗</a><a class="btn sm" href="#settings">登録する</a></div></div>`;
 }
 function stepPre(L, flow) {
@@ -177,11 +178,11 @@ function stepExposure(L, flow) {
   };
   if (L.kind === 'svgCute') {
     render(exposureShell(L, flow, `<div class="stage" id="st">${svgCute(S.name, S.hatched)}</div>
-      ${!S.hatched ? `<div class="card"><h3>名前をつける</h3><input type="text" id="nm" placeholder="例: ぴょん吉" value="${h(S.name)}"><button class="btn primary block" id="hatch" style="margin-top:8px">この名前で孵化させる</button></div>` : `<p class="center muted small">${h(spiderName())}はこちらを見ている。タップすると跳ねる。</p>`}`, '見ているだけでOK'), () => {
+      ${!S.hatched ? `<div class="card"><h3>このたまごの子に名前をつける</h3><p class="small">これから Lv11 まで一緒に過ごす1匹のハエトリグモ。名前で呼ぶと「虫」が「この子」になり、嫌悪が下がりやすい(克服した人の体験談で共通)。ステージ3では本物の子がこの名前を引き継ぐ。</p><input type="text" id="nm" placeholder="例: ぴょん吉、はえ子、ジャンプ" value="${h(S.name)}"><button class="btn primary block" id="hatch" style="margin-top:8px">この名前で孵化させる</button></div>` : `<p class="center muted small">${h(spiderName())}はこちらを見ている。タップすると跳ねる。</p>`}`, '見ているだけでOK'), () => {
       bindCommon();
       const st = $('#st');
       if (!S.hatched) { $('#hatch').onclick = () => { const n = $('#nm').value.trim(); if (!n) return toast('名前を入れてね'); S.name = n; S.hatched = true; save(); st.innerHTML = svgCute(n, true); $('#hatch').closest('.card').innerHTML = `<p class="center">${h(n)}が生まれた。</p>`; speak(`${n}が生まれた`); }; }
-      st.addEventListener('click', () => { const sp = st.querySelector('.spider-cute'); if (!sp) return; sp.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-18px)' }, { transform: 'translateY(0)' }], { duration: 380, easing: 'ease-out' }); });
+      st.addEventListener('click', () => { const sp = st.querySelector('.spider-cute'); if (!sp) { $('#nm')?.focus(); return; } sp.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-18px)' }, { transform: 'translateY(0)' }], { duration: 380, easing: 'ease-out' }); });
     });
   } else if (L.kind === 'svgReal') {
     render(exposureShell(L, flow, `<div class="stage" id="st">${svgReal()}<div id="fly" style="position:absolute;width:44px;height:44px;left:12px;top:12px;touch-action:none;cursor:grab">${FLY_SVG}</div><div class="hint">コバエをドラッグして${h(spiderName())}に届ける</div></div><p class="center muted small" id="fed">餌をあげた回数: 0</p>`, 'ドラッグ'), () => {
@@ -366,14 +367,15 @@ routes.settings = () => {
     <div class="card"><h3>モデリング動画(Lv6・各レベル冒頭): 手に乗せている動画のYouTube URL</h3><textarea id="v6" rows="3" placeholder="1行に1つ">${h((S.videos.lv6 || []).join('\n'))}</textarea>
       <h3>動く動画(Lv5): 歩く・跳ぶ動画のYouTube URL</h3><textarea id="v5" rows="3" placeholder="1行に1つ">${h((S.videos.lv5 || []).join('\n'))}</textarea>
       <h3>実写写真のURL(Lv4、Commonsが使えないとき用)</h3><textarea id="ph" rows="3" placeholder="1行に1つ">${h((S.userPhotos || []).join('\n'))}</textarea>
-      <button class="btn sm" id="vSave" style="margin-top:8px">保存</button>
-      <p class="small muted">探すときは「ハエトリグモ 手に乗せる」「jumping spider hand」。実写写真・動画はWikimedia Commonsから自動取得(通信が必要)。</p></div>
+      <div class="row" style="margin-top:8px"><button class="btn sm" id="vSave">保存</button><button class="btn sm" id="vDefault">既定の動画に戻す</button></div>
+      <p class="small muted">既定で「人懐こいハエトリグモ」「Jumping Spider on my hand」など6本が入っている。探すときは「ハエトリグモ 手に乗せる」「jumping spider hand」。実写写真・動画はWikimedia Commonsから自動取得(通信が必要)。</p></div>
     <div class="card"><label class="check"><input type="checkbox" id="voice" ${S.voice ? 'checked' : ''}><span>ガイドの声(読み上げ)をオンにする</span></label></div>
     <div class="card"><h3>データ</h3><div class="row"><button class="btn sm" id="exp">JSONを書き出す</button><button class="btn sm danger" id="reset">全部消す</button></div>
       <p class="small muted">保存先はこの端末のブラウザ(localStorage)。</p></div>
     <p class="small muted center">むしとも v0.1 · 段階的曝露 + 嫌悪対策 + 触覚 + モデリング</p>`, () => {
     $('#nmSave').onclick = () => { S.name = $('#nm').value.trim(); save(); toast('変更した'); };
     $('#vSave').onclick = () => { S.videos.lv6 = $('#v6').value.split('\n').map(s => s.trim()).filter(Boolean); S.videos.lv5 = $('#v5').value.split('\n').map(s => s.trim()).filter(Boolean); S.userPhotos = $('#ph').value.split('\n').map(s => s.trim()).filter(Boolean); save(); toast('保存した'); };
+    $('#vDefault').onclick = () => { S.videos.lv6 = [...DEFAULT_VIDEOS.lv6]; S.videos.lv5 = [...DEFAULT_VIDEOS.lv5]; save(); toast('既定に戻した'); go('settings'); routes.settings(); };
     $('#voice').onchange = e => { S.voice = e.target.checked; save(); if (S.voice) speak('ガイドをオンにした'); };
     $('#exp').onclick = () => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(S, null, 2)); a.download = 'mushitomo.json'; a.click(); };
     $('#reset').onclick = () => { if (confirm('本当に全部消す?')) { localStorage.removeItem(KEY); S = defaultState(); toast('消した'); go('home'); } };
