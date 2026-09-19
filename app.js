@@ -41,6 +41,7 @@ function bindScale(id, cb) { const el = $('#' + id); el.addEventListener('click'
 function chips(id, items, on) { return `<div class="chips" id="${id}">${items.map(x => `<button type="button" class="chip ${on === x ? 'on' : ''}" data-v="${h(x)}">${h(x)}</button>`).join('')}</div>`; }
 function bindChips(id, cb) { const el = $('#' + id); el.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; el.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); cb(b.dataset.v); }); }
 const levelDone = (id) => S.sessions.some(s => s.level === id && s.unlocked);
+const nextLevelId = () => (LEVELS.find(l => !levelDone(l.id)) || LEVELS[LEVELS.length - 1]).id;
 const lastSession = (id) => [...S.sessions].reverse().find(s => s.level === id);
 function ytId(url) { const m = String(url).match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/); return m ? m[1] : null; }
 
@@ -60,7 +61,7 @@ routes.home = () => {
   const s3done = STAGE3.filter(s => S.stage3[s.id]?.done).length;
   const pct = Math.round(((done + s3done) / (LEVELS.length + STAGE3.length)) * 100);
   const tile = (l) => {
-    const d = levelDone(l.id), locked = l.id > S.maxUnlocked, cur = l.id === S.maxUnlocked && !d;
+    const d = levelDone(l.id), locked = false, cur = l.id === nextLevelId() && !d;
     return `<a class="lv ${d ? 'done' : ''} ${locked ? 'locked' : ''} ${cur ? 'current' : ''}" href="#level/${l.id}"><span class="n">${d ? '✓' : ''}Lv${l.id}</span><span class="t">${h(l.short)}</span></a>`;
   };
   const last = S.sessions.at(-1);
@@ -134,7 +135,6 @@ routes.graduate = () => {
 // ---------- LEVEL FLOW ----------
 routes.level = (id) => {
   const L = LEVELS.find(l => l.id === +id); if (!L) return go('home');
-  if (L.id > S.maxUnlocked) { toast('前のレベルで嫌さを半分にすると開く'); return go('home'); }
   const flow = { pre: null, affectPre: null, predict: null, post: null, affectPost: null, started: null, seconds: 0 };
   stepIntro(L, flow);
 };
@@ -142,7 +142,7 @@ function stepIntro(L, flow) {
   const prev = lastSession(L.id);
   const vids = L.stage === 1 ? [] : (S.videos.lv6 || []);
   render(`${topbar(`Lv${L.id} ${L.title}`)}
-    <div class="card"><div class="spread"><b>${h(L.short)}</b><span class="pill">${L.minutes}分</span></div><p>${h(L.goal)}</p>
+    <div class="card"><div class="spread"><b>${h(L.short)}</b><span class="pill">${L.minutes}分(途中終了OK)</span></div><p>${h(L.goal)}</p>
     ${prev ? `<p class="small muted">前回: SUDS ${prev.pre}→${prev.post} (${fmtDate(prev.date)})</p>` : ''}</div>
     ${modelingBlock(L)}
     ${guide('最初に10秒だけ、平気な人が同じことをしている動画を見る。それから始めよう。')}
@@ -260,19 +260,18 @@ function stepPost(L, flow) {
     bindScale('post', v => flow.post = v); bindChips('aff2', v => flow.affectPost = v);
     $('#save').onclick = () => {
       if (flow.post == null) return toast('SUDSを選んでね');
-      const total = L.minutes * 60;
-      const completed = (flow.seconds || 0) >= total - 5;              // 時間いっぱい居られた
-      const lowEnough = flow.post <= Math.max(3, Math.floor(flow.pre / 2)); // 半減 or もともと低い
-      const unlocked = completed || lowEnough;
-      flow.unlockReason = completed && !lowEnough ? 'completed' : 'suds';
+      const stayed = (flow.seconds || 0) >= 45;                       // 45秒以上居られた
+      const lowEnough = flow.post <= 5 || flow.post <= flow.pre;        // 耐えられる範囲 or 上がっていない
+      const unlocked = stayed || lowEnough;
+      flow.unlockReason = lowEnough && flow.post < flow.pre ? 'suds' : 'completed';
       S.sessions.push({ date: Date.now(), level: L.id, pre: flow.pre, post: flow.post, affectPre: flow.affectPre, affectPost: flow.affectPost, labels: flow.labels || [], predict: flow.predict, seconds: flow.seconds, unlocked, prey: flow.prey || 0 });
-      if (unlocked && L.id === S.maxUnlocked && L.id < LEVELS.length) S.maxUnlocked = L.id + 1;
       save();
       const msg = !unlocked ? GUIDE_LINES.notyet : flow.unlockReason === 'completed' ? GUIDE_LINES.unlockedByTime : GUIDE_LINES.unlocked; speak(msg);
       render(`${topbar('結果')}
         <div class="card center"><div class="big">${flow.pre} → ${flow.post}</div><p>${h(msg)}</p>
-        <p class="small muted">解鎖ルール: 時間いっぱい居られた、または終了後SUDSが開始前の半分以下(3以下ならOK)。SUDSが下がらなくても「予想と違った」ことが学習になる(Craskeら 2014)。</p></div>
-        ${unlocked && L.id < LEVELS.length ? `<a class="btn primary block" href="#level/${L.id + 1}">Lv${L.id + 1}へ進む</a>` : `<a class="btn primary block" href="#level/${L.id}">もう一回やる</a>`}
+        <p class="small muted">ルール: 45秒以上居られた、または終了後SUDSが5以下か開始前より上がっていなければ次へ。SUDSを下げることが目的ではなく、居られたことが学習になる(Craskeら 2014)。レベルはいつでも自由に選べる。</p></div>
+        ${L.id < LEVELS.length ? `<a class="btn ${unlocked ? 'primary' : ''} block" href="#level/${L.id + 1}">Lv${L.id + 1}へ進む</a>` : ''}
+        <a class="btn ${unlocked ? '' : 'primary'} block" style="margin-top:8px" href="#level/${L.id}">もう一回やる</a>
         <a class="btn block" style="margin-top:8px" href="#home">ホームへ</a>`);
     };
   });
