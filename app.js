@@ -1,14 +1,22 @@
-import { LEVELS, STAGE3, BAT_STEPS, AFFECT, GUIDE_LINES, svgCute, svgReal, FLY_SVG } from './levels.js';
+import { AFFECT, GUIDE_LINES, getSpecies, SPECIES } from './levels.js';
+
+// ---------- species ----------
+const SPKEY = 'mushitomo.species';
+let speciesId = (() => { try { return localStorage.getItem(SPKEY) || ''; } catch { return ''; } })();
+let SP = getSpecies(speciesId);
+let LEVELS = SP.levels, STAGE3 = SP.stage3, BAT_STEPS = SP.bat;
+const svgCute = (...a) => SP.svgCute(...a), svgReal = () => SP.svgReal(); let FLY_SVG = SP.foodSvg;
+function setSpecies(id) { speciesId = id; try { localStorage.setItem(SPKEY, id); } catch { } SP = getSpecies(id); LEVELS = SP.levels; STAGE3 = SP.stage3; BAT_STEPS = SP.bat; FLY_SVG = SP.foodSvg; S = load(); }
 
 // ---------- state ----------
-const KEY = 'mushitomo.v1';
+const KEY = () => 'mushitomo.v1' + (speciesId === 'spider' || !speciesId ? '' : '.' + speciesId);
 const defaultState = () => ({
   name: '', hatched: false, baseline: null, final: null, sessions: [], maxUnlocked: 1,
   stage3: {}, videos: { lv5: [], lv6: [] }, prey: 0, voice: true, photos: [], commonsVideos: [], zukan: [], createdAt: Date.now()
 });
 let S = load();
-function load() { try { const j = JSON.parse(localStorage.getItem(KEY)); return j ? { ...defaultState(), ...j } : defaultState(); } catch { return defaultState(); } }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('保存に失敗: ' + e.message); } }
+function load() { try { const j = JSON.parse(localStorage.getItem(KEY())); return j ? { ...defaultState(), ...j } : defaultState(); } catch { return defaultState(); } }
+function save() { try { localStorage.setItem(KEY(), JSON.stringify(S)); } catch (e) { toast('保存に失敗: ' + e.message); } }
 
 // ---------- utils ----------
 const app = document.getElementById('app');
@@ -47,6 +55,7 @@ function route() {
 
 // ---------- HOME ----------
 routes.home = () => {
+  if (!speciesId) return routes.species();
   const done = LEVELS.filter(l => levelDone(l.id)).length;
   const s3done = STAGE3.filter(s => S.stage3[s.id]?.done).length;
   const pct = Math.round(((done + s3done) / (LEVELS.length + STAGE3.length)) * 100);
@@ -57,7 +66,7 @@ routes.home = () => {
   const last = S.sessions.at(-1);
   render(`
     <div class="spread"><h1>むしとも</h1><a class="btn sm ghost" href="#settings">⚙ 設定</a></div>
-    <p class="muted">${S.hatched ? h(spiderName()) + ' の世話係見習い' : 'クモの世話係見習い'} · 捕食ログ ${S.prey} 匹</p>
+    <p class="muted">${S.hatched ? h(spiderName()) + ' の世話係見習い' : h(SP.label) + 'の世話係見習い'} · ${h(SP.preyLabel)} ${S.prey} <a class="small" href="#species">(${h(SP.labelShort)}を変更)</a></p>
     <div class="card">
       <div class="spread"><b>進捗</b><span class="pill">${pct}%</span></div>
       <div class="progress"><i style="width:${pct}%"></i></div>
@@ -77,6 +86,14 @@ routes.home = () => {
   `);
 };
 
+routes.species = () => {
+  render(`<h1>むしとも</h1><p class="muted">まず、どの虫から始めるか選ぶ。あとから設定で切り替えられる(進捗は虫ごとに別)。</p>
+    ${Object.values(SPECIES).map(sp => `<div class="card"><div class="spread"><b>${h(sp.label)}</b>${speciesId === sp.id ? '<span class="pill">選択中</span>' : ''}</div><p class="small muted">${h(sp.safety)}</p><button class="btn ${sp.id === 'pillbug' ? 'primary' : ''} block" data-sp="${sp.id}">${h(sp.label)}で始める</button></div>`).join('')}
+    <p class="small muted center">迷ったらダンゴムシから。噛まない・刺さない・丸くなるだけで、動きが読みやすい。</p>`, () => {
+    app.querySelectorAll('[data-sp]').forEach(b => b.onclick = () => { setSpecies(b.dataset.sp); toast(getSpecies(b.dataset.sp).label + 'にした'); go('home'); routes.home(); });
+  });
+};
+
 // ---------- BASELINE / FINAL ----------
 function measureScreen(kind) {
   const cur = S[kind] || { bat: null, fear: null, disgust: null, suds: null };
@@ -84,10 +101,10 @@ function measureScreen(kind) {
   render(`
     ${topbar(kind === 'baseline' ? '基準値を測る' : '再計測・卒業')}
     ${guide(kind === 'baseline' ? '今のままを正直に。低くても高くても、ここが出発点。' : '連休の最後に、同じ物差しでもう一度。')}
-    <div class="card"><h3>BAT(行動接近テスト)</h3><p class="small muted">実物のクモ(ケース入り)に対して、今できると思う一番遠い段階を選ぶ。</p>
+    <div class="card"><h3>BAT(行動接近テスト)</h3><p class="small muted">実物の${h(SP.labelShort)}(ケース入り)に対して、今できると思う一番遠い段階を選ぶ。</p>
       <div class="choice" id="bat">${BAT_STEPS.map((s, i) => `<button type="button" data-v="${i}" class="${v.bat === i ? 'on' : ''}">${h(s)}</button>`).join('')}</div></div>
-    <div class="card"><h3>クモを想像したときの「怖い」(0〜10)</h3>${scale('fear', v.fear)}</div>
-    <div class="card"><h3>クモを想像したときの「気持ち悪い」(0〜10)</h3>${scale('disgust', v.disgust)}</div>
+    <div class="card"><h3>${h(SP.labelShort)}を想像したときの「怖い」(0〜10)</h3>${scale('fear', v.fear)}</div>
+    <div class="card"><h3>${h(SP.labelShort)}を想像したときの「気持ち悪い」(0〜10)</h3>${scale('disgust', v.disgust)}</div>
     <div class="card"><h3>今この瞬間の嫌さ SUDS(0〜10)</h3>${scale('suds', v.suds)}</div>
     <button class="btn primary block" id="save">保存する</button>
     ${kind === 'final' && S.baseline ? `<p class="small muted center" style="margin-top:10px">基準値: BAT ${S.baseline.bat} · 怖い ${S.baseline.fear} · 気持ち悪い ${S.baseline.disgust}</p>` : ''}
@@ -135,7 +152,7 @@ function modelingBlock(L) {
   const urls = [...(S.videos.lv6 || []), ...(S.videos.lv5 || [])];
   const id = urls.map(ytId).find(Boolean);
   if (id) return `<div class="card"><h3>モデリング動画(10秒でOK)</h3><div class="stage tall"><iframe style="width:100%;height:100%;border:0" src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div>`;
-  return `<div class="card"><h3>モデリング動画</h3><p class="small muted">「ハエトリグモを手に乗せている人」の動画を1本、設定から登録しておくと毎回ここに出る。</p><div class="row"><a class="btn sm" href="https://www.youtube.com/results?search_query=${encodeURIComponent('ハエトリグモ 手に乗せる')}" target="_blank" rel="noopener">YouTubeで探す ↗</a><a class="btn sm" href="#settings">登録する</a></div></div>`;
+  return `<div class="card"><h3>モデリング動画</h3><p class="small muted">「${h(SP.label)}を手に乗せている人」の動画を1本、設定から登録しておくと毎回ここに出る。</p><div class="row"><a class="btn sm" href="https://www.youtube.com/results?search_query=${encodeURIComponent(SP.ytSearch.lv6)}" target="_blank" rel="noopener">YouTubeで探す ↗</a><a class="btn sm" href="#settings">登録する</a></div></div>`;
 }
 function stepPre(L, flow) {
   render(`${topbar(`Lv${L.id} 開始前`)}
@@ -177,14 +194,14 @@ function stepExposure(L, flow) {
   };
   if (L.kind === 'svgCute') {
     render(exposureShell(L, flow, `<div class="stage" id="st">${svgCute(S.name, S.hatched)}</div>
-      ${!S.hatched ? `<div class="card"><h3>名前をつける</h3><input type="text" id="nm" placeholder="例: ぴょん吉" value="${h(S.name)}"><button class="btn primary block" id="hatch" style="margin-top:8px">この名前で孵化させる</button></div>` : `<p class="center muted small">${h(spiderName())}はこちらを見ている。タップすると跳ねる。</p>`}`, '見ているだけでOK'), () => {
+      ${!S.hatched ? `<div class="card"><h3>名前をつける</h3><input type="text" id="nm" placeholder="例: ${h(SP.defaultName)}" value="${h(S.name)}"><button class="btn primary block" id="hatch" style="margin-top:8px">この名前で${SP.id === 'pillbug' ? 'ひらいてもらう' : '孵化させる'}</button></div>` : `<p class="center muted small">${h(spiderName())}はこちらを見ている。タップすると${SP.id === 'pillbug' ? '少し丸まる' : '跳ねる'}。</p>`}`, '見ているだけでOK'), () => {
       bindCommon();
       const st = $('#st');
-      if (!S.hatched) { $('#hatch').onclick = () => { const n = $('#nm').value.trim(); if (!n) return toast('名前を入れてね'); S.name = n; S.hatched = true; save(); st.innerHTML = svgCute(n, true); $('#hatch').closest('.card').innerHTML = `<p class="center">${h(n)}が生まれた。</p>`; speak(`${n}が生まれた`); }; }
+      if (!S.hatched) { $('#hatch').onclick = () => { const n = $('#nm').value.trim(); if (!n) return toast('名前を入れてね'); S.name = n; S.hatched = true; save(); st.innerHTML = svgCute(n, true); $('#hatch').closest('.card').innerHTML = `<p class="center">${h(n)}が${SP.id === 'pillbug' ? 'ひらいた' : '生まれた'}。</p>`; speak(`${n}が${SP.id === 'pillbug' ? 'ひらいた' : '生まれた'}`); }; }
       st.addEventListener('click', () => { const sp = st.querySelector('.spider-cute'); if (!sp) return; sp.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-18px)' }, { transform: 'translateY(0)' }], { duration: 380, easing: 'ease-out' }); });
     });
   } else if (L.kind === 'svgReal') {
-    render(exposureShell(L, flow, `<div class="stage" id="st">${svgReal()}<div id="fly" style="position:absolute;width:44px;height:44px;left:12px;top:12px;touch-action:none;cursor:grab">${FLY_SVG}</div><div class="hint">コバエをドラッグして${h(spiderName())}に届ける</div></div><p class="center muted small" id="fed">餌をあげた回数: 0</p>`, 'ドラッグ'), () => {
+    render(exposureShell(L, flow, `<div class="stage" id="st">${svgReal()}<div id="fly" style="position:absolute;width:44px;height:44px;left:12px;top:12px;touch-action:none;cursor:grab">${FLY_SVG}</div><div class="hint">${h(SP.foodName)}をドラッグして${h(spiderName())}に届ける</div></div><p class="center muted small" id="fed">${h(SP.foodName)}をあげた回数: 0</p>`, 'ドラッグ'), () => {
       bindCommon();
       const st = $('#st'), fly = $('#fly'); let drag = null, fed = 0;
       fly.addEventListener('pointerdown', e => { drag = { dx: e.clientX - fly.offsetLeft, dy: e.clientY - fly.offsetTop }; fly.setPointerCapture(e.pointerId); });
@@ -192,14 +209,14 @@ function stepExposure(L, flow) {
       fly.addEventListener('pointerup', () => {
         if (!drag) return; drag = null; const r = st.getBoundingClientRect(), f = fly.getBoundingClientRect();
         const cx = (f.left + f.width / 2 - r.left) / r.width, cy = (f.top + f.height / 2 - r.top) / r.height;
-        if (cx > 0.3 && cx < 0.7 && cy > 0.35 && cy < 0.8) { fed++; $('#fed').textContent = `餌をあげた回数: ${fed}`; const sp = st.querySelector('.spider-real'); sp.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-10px) scale(1.04)' }, { transform: 'translateY(0)' }], { duration: 300 }); fly.style.left = '12px'; fly.style.top = '12px'; toast('食べた!'); }
+        if (cx > 0.3 && cx < 0.7 && cy > 0.35 && cy < 0.8) { fed++; $('#fed').textContent = `${SP.foodName}をあげた回数: ${fed}`; const sp = st.querySelector('.spider-real'); sp.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-10px) scale(1.04)' }, { transform: 'translateY(0)' }], { duration: 300 }); fly.style.left = '12px'; fly.style.top = '12px'; toast('食べた!'); }
       });
     });
   } else if (L.kind === 'model3d') {
-    render(exposureShell(L, flow, `<div class="stage" id="st"><div class="hint">スワイプすると指から離れる方向へ逃げる</div></div><p class="center muted small" id="fl">どいてもらった回数: 0</p>`, 'スワイプ'), async () => {
+    render(exposureShell(L, flow, `<div class="stage" id="st"><div class="hint">${SP.id === 'pillbug' ? 'タップで丸まる/ひらく。スワイプで離れる' : 'スワイプすると指から離れる方向へ逃げる'}</div></div><p class="center muted small" id="fl">どいてもらった回数: 0</p>`, 'スワイプ'), async () => {
       bindCommon();
       const { mountStaticViewer } = await import('./spider3d.js');
-      const v = mountStaticViewer($('#st'), { onFlee: n => $('#fl').textContent = `どいてもらった回数: ${n}` });
+      const v = mountStaticViewer($('#st'), { species: SP.id, onFlee: n => $('#fl').textContent = `どいてもらった回数: ${n}` });
       const prevStop = stop; stop = () => { prevStop(); v.destroy(); };
     });
   } else if (L.kind === 'photos') {
@@ -225,7 +242,7 @@ function stepExposure(L, flow) {
       for (const id of yts) html += `<div class="stage tall" style="margin-bottom:8px"><iframe style="width:100%;height:100%;border:0" src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
       const cv = await loadCommonsVideos();
       for (const v of cv.slice(0, 4)) html += `<div class="stage tall" style="margin-bottom:8px"><video src="${v.url}" controls playsinline preload="metadata"></video></div><p class="small muted">${h(v.credit)}</p>`;
-      if (!html) html = `<div class="warn">動画がまだない。設定からYouTubeのURLを登録するか、<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(L.id === 5 ? 'ハエトリグモ ジャンプ' : 'ハエトリグモ 手に乗せる')}" target="_blank" rel="noopener">YouTubeで探す ↗</a>(見つけたURLを登録するとここに出る)</div>`;
+      if (!html) html = `<div class="warn">動画がまだない。設定からYouTubeのURLを登録するか、<a href="https://www.youtube.com/results?search_query=${encodeURIComponent(L.id === 5 ? SP.ytSearch.lv5 : SP.ytSearch.lv6)}" target="_blank" rel="noopener">YouTubeで探す ↗</a>(見つけたURLを登録するとここに出る)</div>`;
       box.innerHTML = html;
     });
   } else if (L.kind === 'ar') {
@@ -243,14 +260,18 @@ function stepPost(L, flow) {
     bindScale('post', v => flow.post = v); bindChips('aff2', v => flow.affectPost = v);
     $('#save').onclick = () => {
       if (flow.post == null) return toast('SUDSを選んでね');
-      const unlocked = flow.post <= Math.max(2, Math.floor(flow.pre / 2));
+      const total = L.minutes * 60;
+      const completed = (flow.seconds || 0) >= total - 5;              // 時間いっぱい居られた
+      const lowEnough = flow.post <= Math.max(3, Math.floor(flow.pre / 2)); // 半減 or もともと低い
+      const unlocked = completed || lowEnough;
+      flow.unlockReason = completed && !lowEnough ? 'completed' : 'suds';
       S.sessions.push({ date: Date.now(), level: L.id, pre: flow.pre, post: flow.post, affectPre: flow.affectPre, affectPost: flow.affectPost, labels: flow.labels || [], predict: flow.predict, seconds: flow.seconds, unlocked, prey: flow.prey || 0 });
       if (unlocked && L.id === S.maxUnlocked && L.id < LEVELS.length) S.maxUnlocked = L.id + 1;
       save();
-      const msg = unlocked ? GUIDE_LINES.unlocked : GUIDE_LINES.notyet; speak(msg);
+      const msg = !unlocked ? GUIDE_LINES.notyet : flow.unlockReason === 'completed' ? GUIDE_LINES.unlockedByTime : GUIDE_LINES.unlocked; speak(msg);
       render(`${topbar('結果')}
         <div class="card center"><div class="big">${flow.pre} → ${flow.post}</div><p>${h(msg)}</p>
-        <p class="small muted">解鎖ルール: 終了後のSUDSが開始前の半分以下(または2以下)</p></div>
+        <p class="small muted">解鎖ルール: 時間いっぱい居られた、または終了後SUDSが開始前の半分以下(3以下ならOK)。SUDSが下がらなくても「予想と違った」ことが学習になる(Craskeら 2014)。</p></div>
         ${unlocked && L.id < LEVELS.length ? `<a class="btn primary block" href="#level/${L.id + 1}">Lv${L.id + 1}へ進む</a>` : `<a class="btn primary block" href="#level/${L.id}">もう一回やる</a>`}
         <a class="btn block" style="margin-top:8px" href="#home">ホームへ</a>`);
     };
@@ -262,7 +283,7 @@ async function startAR(L, flow, done) {
   const { ARSession } = await import('./spider3d.js');
   const wrap = document.createElement('div'); wrap.className = 'ar-wrap';
   wrap.innerHTML = `<div class="ar-top"><span class="pill">Lv${L.id} ${h(L.title)}</span><span class="timer" id="timer">${L.minutes}:00</span><button class="btn sm" id="close">終了</button></div>
-    <div class="badge" id="badge">捕食ログ 0</div>
+    <div class="badge" id="badge">${h(SP.preyLabel)} 0</div>
     <div class="ar-ui"><div class="ar-msg" id="msg">起動中…</div>
       <div class="row" style="margin-bottom:8px"><span class="small">今の嫌さ</span>${[0, 2, 4, 6, 8, 10].map(v => `<button class="btn sm" data-s="${v}">${v}</button>`).join('')}</div>
       <div class="row" id="arActions"></div>
@@ -270,15 +291,16 @@ async function startAR(L, flow, done) {
   document.body.appendChild(wrap);
   const msg = $('#msg', wrap), badge = $('#badge', wrap), actions = $('#arActions', wrap);
   const b = L.ar.behavior;
-  const hints = { still: `2.5m先の床に${spiderName()}がいる。見つけたら画面をタップして名前を呼ぶ。`, lure: '床をタップすると餌(コバエ)を置ける。餌の方へ歩いて、最後に跳ぶ(点線で予告)。', walk: '画面の下側を歩く。指を画面に置くと、指を避けて歩く。手元にフワフワした物を。', hand: '画面の下に手を出して。手のひらにフィギュアを乗せると触覚が足せる。30秒。', free: '何もしないで見ているだけ。ときどきコバエを捕まえる。' };
+  const pb = SP.id === 'pillbug';
+  const hints = { still: `2.5m先の床に${spiderName()}がいる。見つけたら画面をタップして名前を呼ぶ。`, lure: pb ? '床をタップすると落ち葉を置ける。触角で探りながらジグザグに向かい、かじる。' : '床をタップすると餌(コバエ)を置ける。餌の方へ歩いて、最後に跳ぶ(点線で予告)。', walk: pb ? '画面の下側を歩く。指を画面に置くと避ける。近すぎると丸まる。手元にフワフワした物を。' : '画面の下側を歩く。指を画面に置くと、指を避けて歩く。手元にフワフワした物を。', hand: pb ? '画面の下に手を出して。最初は丸まり、じっとしているとひらく。30秒。' : '画面の下に手を出して。手のひらにフィギュアを乗せると触覚が足せる。30秒。', free: pb ? '何もしないで見ているだけ。ときどき落ち葉を食べる。' : '何もしないで見ているだけ。ときどきコバエを捕まえる。' };
   let called = 0, handStart = null, calls = 0;
   const ar = new ARSession(wrap, {
-    level: L, name: spiderName(), onEvent: (ev, v) => {
+    level: L, name: spiderName(), species: SP.id, onEvent: (ev, v) => {
       if (ev === 'mode') { msg.textContent = (v === 'webxr' ? '床を映して、2.5m先の床をタップして置く。' : v === 'nocamera' ? 'カメラが使えない。緑背景で代替する。' : hints[b]); if (v === 'webxr') actions.innerHTML = ''; }
       if (ev === 'placed') { msg.textContent = hints[b]; if (b === 'hand') handStart = Date.now(); }
       if (ev === 'called') { calls++; msg.textContent = `${spiderName()}! (${calls}回目)`; speak(spiderName()); }
-      if (ev === 'prey') { badge.textContent = `捕食ログ ${v}`; flow.prey = v; }
-      if (ev === 'fly') msg.textContent = '餌を置いた。歩いてくるのを待とう。';
+      if (ev === 'prey') { badge.textContent = `${SP.preyLabel} ${v}`; flow.prey = v; }
+      if (ev === 'fly') msg.textContent = `${SP.foodName}を置いた。歩いてくるのを待とう。`;
       if (ev === 'ended') finish();
     }
   });
@@ -303,7 +325,7 @@ async function commonsSearch(q, extra = '') {
 async function loadCommonsPhotos() {
   if (S.photos.length && Date.now() - (S.photosAt || 0) < 7 * 864e5) return S.photos;
   try {
-    const a = await commonsSearch('Hasarius adansoni filetype:bitmap'); const b = await commonsSearch('Salticidae macro filetype:bitmap');
+    const a = await commonsSearch(SP.commons.photos[0]); const b = await commonsSearch(SP.commons.photos[1] || SP.commons.photos[0]);
     const list = [...a, ...b].filter(p => /image\/(jpeg|png)/.test(p.mime || 'image/jpeg')).slice(0, 24);
     if (list.length) { S.photos = list; S.photosAt = Date.now(); save(); }
     return list;
@@ -312,7 +334,7 @@ async function loadCommonsPhotos() {
 async function loadCommonsVideos() {
   if (S.commonsVideos.length && Date.now() - (S.videosAt || 0) < 7 * 864e5) return S.commonsVideos;
   try {
-    const a = await commonsSearch('Salticidae filetype:video');
+    const a = await commonsSearch(SP.commons.videos[0]);
     const list = a.filter(v => /video\/(webm|mp4|ogg)/.test(v.mime || '')).map(v => ({ ...v, url: v.full })).slice(0, 6);
     if (list.length) { S.commonsVideos = list; S.videosAt = Date.now(); save(); }
     return list;
@@ -322,8 +344,8 @@ async function loadCommonsVideos() {
 // ---------- STAGE 3 ----------
 routes.stage3 = () => {
   render(`${topbar('ステージ3 · 実物')}
-    <div class="warn">ハエトリグモ(アダンソンハエトリ等)は小型で人に無害。赤い模様の黒いクモ(セアカゴケグモ)は有毒なので触らない。可能なら同席者ありで。</div>
-    ${guide('目的があると近づける。「餌を入れる」「大きくなったか見る」を口実にしよう。')}
+    <div class="warn">${h(SP.safety)}</div>
+    ${guide(SP.guideCare)}
     ${STAGE3.map((s, i) => { const d = S.stage3[s.id] || {}; return `<div class="card ${d.done ? '' : ''}"><div class="spread"><b>${i + 1}. ${h(s.title)}</b>${d.done ? `<span class="pill">✓ ${fmtDate(d.date)} SUDS ${d.pre}→${d.post}</span>` : `<span class="pill gray">${s.minutes}分</span>`}</div><p class="small">${h(s.detail)}</p><a class="btn sm ${d.done ? '' : 'primary'}" href="#s3/${s.id}">${d.done ? 'もう一回' : 'やる'}</a></div>`; }).join('')}
     ${STAGE3.every(s => S.stage3[s.id]?.done) ? `<a class="btn primary block" href="#final">再計測して卒業する</a>` : ''}`);
 };
@@ -362,12 +384,13 @@ routes.diary = () => {
 // ---------- SETTINGS ----------
 routes.settings = () => {
   render(`${topbar('設定')}
-    <div class="card"><h3>クモの名前</h3><input type="text" id="nm" value="${h(S.name)}"><button class="btn sm" id="nmSave" style="margin-top:8px">変更</button></div>
+    <div class="card"><h3>虫の種類</h3><p class="small muted">今: ${h(SP.label)}。進捗・記録は種類ごとに別に保存される。</p><a class="btn sm" href="#species">種類を切り替える</a></div>
+    <div class="card"><h3>${h(SP.labelShort)}の名前</h3><input type="text" id="nm" value="${h(S.name)}"><button class="btn sm" id="nmSave" style="margin-top:8px">変更</button></div>
     <div class="card"><h3>モデリング動画(Lv6・各レベル冒頭): 手に乗せている動画のYouTube URL</h3><textarea id="v6" rows="3" placeholder="1行に1つ">${h((S.videos.lv6 || []).join('\n'))}</textarea>
       <h3>動く動画(Lv5): 歩く・跳ぶ動画のYouTube URL</h3><textarea id="v5" rows="3" placeholder="1行に1つ">${h((S.videos.lv5 || []).join('\n'))}</textarea>
       <h3>実写写真のURL(Lv4、Commonsが使えないとき用)</h3><textarea id="ph" rows="3" placeholder="1行に1つ">${h((S.userPhotos || []).join('\n'))}</textarea>
       <button class="btn sm" id="vSave" style="margin-top:8px">保存</button>
-      <p class="small muted">探すときは「ハエトリグモ 手に乗せる」「jumping spider hand」。実写写真・動画はWikimedia Commonsから自動取得(通信が必要)。</p></div>
+      <p class="small muted">探すときは「${h(SP.ytSearch.lv6)}」「${h(SP.ytSearch.lv5)}」。実写写真・動画はWikimedia Commonsから自動取得(通信が必要)。</p></div>
     <div class="card"><label class="check"><input type="checkbox" id="voice" ${S.voice ? 'checked' : ''}><span>ガイドの声(読み上げ)をオンにする</span></label></div>
     <div class="card"><h3>データ</h3><div class="row"><button class="btn sm" id="exp">JSONを書き出す</button><button class="btn sm danger" id="reset">全部消す</button></div>
       <p class="small muted">保存先はこの端末のブラウザ(localStorage)。</p></div>
@@ -376,7 +399,7 @@ routes.settings = () => {
     $('#vSave').onclick = () => { S.videos.lv6 = $('#v6').value.split('\n').map(s => s.trim()).filter(Boolean); S.videos.lv5 = $('#v5').value.split('\n').map(s => s.trim()).filter(Boolean); S.userPhotos = $('#ph').value.split('\n').map(s => s.trim()).filter(Boolean); save(); toast('保存した'); };
     $('#voice').onchange = e => { S.voice = e.target.checked; save(); if (S.voice) speak('ガイドをオンにした'); };
     $('#exp').onclick = () => { const a = document.createElement('a'); a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(S, null, 2)); a.download = 'mushitomo.json'; a.click(); };
-    $('#reset').onclick = () => { if (confirm('本当に全部消す?')) { localStorage.removeItem(KEY); S = defaultState(); toast('消した'); go('home'); } };
+    $('#reset').onclick = () => { if (confirm('本当に全部消す?')) { localStorage.removeItem(KEY()); S = load(); toast('消した'); go('home'); } };
   });
 };
 

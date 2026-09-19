@@ -145,10 +145,25 @@ export function svgReal(){
 
 export const FLY_SVG = `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><ellipse cx="20" cy="22" rx="6" ry="9" fill="#333"/><ellipse cx="13" cy="16" rx="7" ry="4" fill="#cfe8ff" opacity=".8" transform="rotate(-25 13 16)"/><ellipse cx="27" cy="16" rx="7" ry="4" fill="#cfe8ff" opacity=".8" transform="rotate(25 27 16)"/><circle cx="17" cy="14" r="2" fill="#b33"/><circle cx="23" cy="14" r="2" fill="#b33"/></svg>`;
 
+import { PILLBUG } from './pillbug.js';
+
+export const SPIDER = {
+  id: 'spider', label: 'ハエトリグモ', labelShort: 'クモ', foodName: 'コバエ', foodVerb: '食べた', preyLabel: '捕食ログ',
+  eggName: 'たまご', defaultName: 'ぴょん吉',
+  commons: { photos: ['Hasarius adansoni filetype:bitmap', 'Salticidae macro filetype:bitmap'], videos: ['Salticidae filetype:video'] },
+  ytSearch: { lv5: 'ハエトリグモ ジャンプ', lv6: 'ハエトリグモ 手に乗せる' },
+  safety: 'ハエトリグモ(アダンソンハエトリ等)は小型で人に無害。赤い模様の黒いクモ(セアカゴケグモ)は有毒なので触らない。可能なら同席者ありで。',
+  guideCare: '目的があると近づける。「餌を入れる」「大きくなったか見る」を口実にしよう。',
+  levels: LEVELS, stage3: STAGE3, bat: BAT_STEPS, svgCute, svgReal, foodSvg: FLY_SVG,
+};
+export const SPECIES = { spider: SPIDER, pillbug: PILLBUG };
+export function getSpecies(id) { return SPECIES[id] || SPIDER; }
+
 export const GUIDE_LINES = {
   start:'今は見ているだけでOK。嫌さは0〜10で正直につけよう。',
   half:'半分過ぎた。呼吸はゆっくり。目をそらしても、また戻ればいい。',
   end:'おつかれ。予想は当たった? 答え合わせをしよう。',
   unlocked:'嫌さが下がった。次のレベルが開いた。',
-  notyet:'まだ下がりきっていない。同じレベルをもう一回やるのが正解。',
+  unlockedByTime:'嫌さは下がらなかったけど、最後まで居られた。それで十分。次のレベルが開いた。',
+  notyet:'途中でやめた分は、同じレベルをもう一回。短くてもいい。',
 };
